@@ -28,6 +28,7 @@ public class RedisSchemaBenchmark {
     private final int keyspaceSize = 1000000;
     private final String listingId = "LSTRANDOM%s_meta";
     private final String lznKey = "LSTRANDOM%s_lzn";
+    private final String olmKey = "LSTRANDOM%s_olm";
     private Map<String, Integer> fieldVals;
     private final Random random = new Random();
     private final int PARALLELISM = 1;
@@ -50,6 +51,14 @@ public class RedisSchemaBenchmark {
         fieldVals.put("fa", 1);
         fieldVals.put("qs", 25);
         fieldVals.put("x1", 25);
+        fieldVals.put("pr", 100000);
+        fieldVals.put("di", 100);
+        fieldVals.put("ov", 30000);
+        fieldVals.put("pu", 500);
+
+        for (int i=0; i<20; i++) {
+            fieldVals.put(Integer.toString(i), 32);
+        }
 
         jedis = new Jedis(host, port);
 
@@ -68,7 +77,12 @@ public class RedisSchemaBenchmark {
 //                        for (int zone = 0; zone < 256; zone++)
 //                            pipeline.hset(key, Integer.toString(zone), Integer.toString(random.nextInt(3)));
                         pipeline.setbit(String.format(lznKey, num), 0, true);
-                        pipeline.setbit(String.format(lznKey, num), 512, false);
+                        pipeline.setbit(String.format(lznKey, num), 1024, false);
+
+                        for(int o=0; o<10; o++) {
+                            pipeline.sadd(String.format(olmKey, num), Integer.toString(random.nextInt(200000)));
+                        }
+
                         pipeline.sync();
                     }
                 }));
@@ -104,27 +118,29 @@ public class RedisSchemaBenchmark {
         jedis.hget(key, field);
     }
 
-//    @Benchmark
-//    public void getLZN() throws Exception {
-//        int num = random.nextInt(keyspaceSize);
-//        String key2 = String.format(lznKey, num);
-//        Pipeline pipelined = jedis.pipelined();
-//        pipelined.multi();
-//        pipelined.getbit(key2, 0);
-//        pipelined.getbit(key2, 1);
-//        pipelined.exec();
-//        pipelined.syncAndReturnAll();
-//    }
+    @Benchmark
+    public void getLZN() throws Exception {
+        int num = random.nextInt(keyspaceSize);
+        String key2 = String.format(lznKey, num);
+        Pipeline pipelined = jedis.pipelined();
+        pipelined.multi();
+        pipelined.getbit(key2, 0);
+        pipelined.getbit(key2, 1);
+        pipelined.exec();
+        pipelined.syncAndReturnAll();
+    }
 
     @Benchmark
     public void hgetall() throws Exception {
         int num = random.nextInt(keyspaceSize);
         String key1 = String.format(listingId, num);
         String key2 = String.format(lznKey, num);
+        String key3 = String.format(olmKey, num);
         Pipeline pipelined = jedis.pipelined();
         pipelined.hgetAll(key1);
-//        pipelined.get(key2);
-        pipelined.sync();
+        pipelined.get(key2);
+        pipelined.smembers(key3);
+        pipelined.syncAndReturnAll();
     }
 
     public static void main(String[] args) throws RunnerException {
